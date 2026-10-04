@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Felucca fork contributors
+# The host tests and the static resource ledger on every push and pull request. No JieLi toolchain,
+# SDK or hardware: HOST_ONLY=1 generates build/gen itself and runs every test that does not read
+# build/felucca.{bin,fwsc,dis}; what it skips is listed at the end of the log (see BUILDING.md).
+name: host tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pillow (the font and icon generators)
+        run: pip install Pillow
+      - name: Host tests (no target build)
+        run: HOST_ONLY=1 sh tests/run_tests.sh
+      - name: Resource ledger
+        run: python3 tools/ledger.py --top 3

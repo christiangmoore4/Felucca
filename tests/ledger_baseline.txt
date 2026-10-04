@@ -1,0 +1,16 @@
+# FELUCCA static resource ledger baseline (tools/ledger.py): bytes of the objects in each region,
+# from a 32-bit host compile of firmware/src/felucca.c (gcc -m32). Not target bytes: the linker adds
+# padding (under 1 %) and code size / stack depth are not here. The check allows +1 % growth; a
+# smaller number is noted, not failed. Rewritten by BUDGET_UPDATE=1; compare with the first real
+# link map (build.py check()) and record the difference here.
+pool 260384
+ram 43010
+noinit 10536
+rodata 334784
+strings 3838
+smp_data 258554
+set/FLUTE 31422
+set/PERC 74424
+set/PIANO 55130
+set/SAX 31422
+set/TRANH 66156

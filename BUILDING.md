@@ -77,6 +77,30 @@ cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended ch
 the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`
 does the same for the cost files.
 
+## Without the toolchain
+
+Most of the host tests and a static resource ledger need neither the JieLi toolchain nor the SDK
+nor a device (this is what CI runs, `.github/workflows/host-tests.yml`):
+
+```
+pip3 install Pillow                   # the font and icon generators
+HOST_ONLY=1 tests/run_tests.sh
+python3 tools/ledger.py               # RAM / POOL / NOINIT / constants / factory samples
+```
+
+`HOST_ONLY=1` generates `build/gen` itself (`tools/build.py --gen-only`) and runs every test that does
+not read `build/felucca.{bin,fwsc,dis}`. It lists what it did not run (the update-entry and loader
+tests, the target cost of the render loops, and on anything but macOS the CPU instruction budget) and
+ends with `HOST-ONLY TESTS PASSED`, never `ALL HOST TESTS PASSED`: that line is the full suite after
+`./build.sh`.
+
+The ledger compiles `firmware/src/felucca.c` to assembly with a 32-bit host compiler (`gcc -m32`, else
+clang; `LEDGER_CC` overrides) and adds up the object sizes by linker region. Capacities come from
+`firmware/app.ld`, the pool reserve from `tools/build.py`. It is not a target measurement: the linker
+adds alignment padding (under 1 %), and code size and stack depth need the real build. It checks
+against `tests/ledger_baseline.txt` (+1 %; `BUDGET_UPDATE=1` rewrites it) and honours the same
+`FELUCCA_*` flags as the build, e.g. `FELUCCA_SLICE=1 python3 tools/ledger.py`.
+
 ## Install
 
 Use the web installer in Chrome or Edge:

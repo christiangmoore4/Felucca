@@ -4,6 +4,7 @@
 """Build Felucca: the app, the update loader and an installable .fwsc package.
 
   tools/build.py [--release X.Y[-suffix]]
+  tools/build.py --gen-only        only the generated headers in build/gen (no toolchain, no SDK)
 
 Outputs in build/: felucca.bin (app), loader/ota.bin (update loader),
 felucca.fwsc (package). See BUILDING.md for the toolchain and the SDK.
@@ -34,6 +35,7 @@ import lz4blk  # noqa: E402
 
 APP_XIP = 0x02000120                # app.bin offset 0 in the XIP map; the SPL jumps here
 APP_SLOT = fm1pkg_make.APP_SLOT
+POOL_RESERVE = 8192                 # keep >= 8 KiB of the pool spare (check(); tools/ledger.py reports the same)
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
@@ -169,7 +171,8 @@ def build_loader():
 
 # ---- app
 
-def build_app():
+def app_flags():
+    """compiler flags of the app (the feature flags come from the environment, as documented in BUILDING.md)"""
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
                  "FELUCCA_ICONS", "FELUCCA_SLICE"):
@@ -179,6 +182,11 @@ def build_app():
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
+    return flags
+
+
+def build_app():
+    flags = app_flags()
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
@@ -246,8 +254,8 @@ def check(img, syms, dis, rt):
     notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
     if bss > 96 * 1024:
         errors.append("RAM region overflow")
-    if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
-        errors.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+    if 0x54000 - pool < POOL_RESERVE:
+        errors.append(f"pool headroom {0x54000 - pool} B < {POOL_RESERVE} B")
     return errors, notes
 
 
@@ -300,7 +308,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
+    ap.add_argument("--gen-only", action="store_true",
+                    help="only generate build/gen (fonts, icons, tables, samples); needs no toolchain or SDK")
     a = ap.parse_args()
+    if a.gen_only:                  # host tests and tools/ledger.py: no pi32v2 toolchain, no SDK
+        generate()
+        return 0
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
